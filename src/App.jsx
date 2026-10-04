@@ -152,6 +152,8 @@ function Journal({ session, onSignOut }) {
       place: form.place || 'Somewhere together',
       startDate: form.startDate,
       endDate: form.endDate,
+      heroPositionX: form.heroPositionX,
+      heroPositionY: form.heroPositionY,
       dates: formatJourneyRange(form.startDate, form.endDate),
       color: form.color,
       cover: form.cover || COVER_PRESETS[0].url,
@@ -346,7 +348,7 @@ function MemoryView({ memory, activeDay, setActiveDay, view, setView, onBack, on
   return (
     <>
       <section className="memory-hero" style={{ '--accent': memory.color }}>
-        <img src={memory.cover} alt="" />
+        <img src={memory.cover} alt="" style={{ objectPosition: `${memory.heroPositionX ?? 50}% ${memory.heroPositionY ?? 50}%` }} />
         <div className="hero-shade" />
         <button className="back" onClick={onBack}><ChevronLeft size={18} /> All memories</button>
         <div className="memory-actions">
@@ -582,6 +584,7 @@ function MemoryModal({ onClose, onSave, memory = null }) {
   const [f, setF] = useState(() => ({
     title: memory?.title || '', place: memory?.place || '', startDate: memory?.startDate || '', endDate: memory?.endDate || '',
     color: memory?.color || '#C45B38', cover: memory?.cover || COVER_PRESETS[0].url,
+    heroPositionX: memory?.heroPositionX ?? 50, heroPositionY: memory?.heroPositionY ?? 50,
   }))
   const [showAdd, setShowAdd] = useState(false)
   const [addMode, setAddMode] = useState('upload')
@@ -751,10 +754,21 @@ function MemoryModal({ onClose, onSave, memory = null }) {
 
         {f.cover && (
           <div className="cover-preview">
-            <img src={f.cover} alt="cover preview" />
+            <img src={f.cover} alt="cover preview" style={{ objectPosition: `${f.heroPositionX}% ${f.heroPositionY}%` }} />
             <div style={{ background: `linear-gradient(transparent, ${f.color})` }} />
           </div>
         )}
+
+        <div className="hero-framing">
+          <p className="eyebrow">CHAPTER BANNER FRAMING</p>
+          <small>Adjusts only the wide chapter banner—not the collection card.</small>
+          <label>Move left / right
+            <input type="range" min="0" max="100" value={f.heroPositionX} onChange={e => setF({ ...f, heroPositionX: Number(e.target.value) })} />
+          </label>
+          <label>Move up / down
+            <input type="range" min="0" max="100" value={f.heroPositionY} onChange={e => setF({ ...f, heroPositionY: Number(e.target.value) })} />
+          </label>
+        </div>
 
         <button className="primary" type="submit">{memory ? 'Save changes' : 'Create the chapter'} <Heart size={17} /></button>
       </form>

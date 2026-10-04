@@ -125,13 +125,15 @@ export const api = {
         date_end: form.endDate,
         color: form.color,
         cover: form.cover,
+        hero_position_x: form.heroPositionX,
+        hero_position_y: form.heroPositionY,
       }),
     }),
 
   updateMemory: (memoryId, form) =>
     request(`/api/memories/${memoryId}`, {
       method: 'PUT',
-      body: JSON.stringify({ title: form.title, place: form.place, date_label: form.dates, date_start: form.startDate, date_end: form.endDate, color: form.color, cover: form.cover }),
+      body: JSON.stringify({ title: form.title, place: form.place, date_label: form.dates, date_start: form.startDate, date_end: form.endDate, color: form.color, cover: form.cover, hero_position_x: form.heroPositionX, hero_position_y: form.heroPositionY }),
     }),
 
   deleteMemory: memoryId => request(`/api/memories/${memoryId}`, { method: 'DELETE' }),
