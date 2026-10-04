@@ -16,6 +16,18 @@ const COVER_PRESETS = [
   { label: 'Lakes', url: 'https://images.unsplash.com/photo-1501854140801-50d01698950b?auto=format&fit=crop&w=1200&q=85' },
 ]
 
+function formatJourneyDate(date) {
+  if (!date) return ''
+  const parsed = new Date(`${date}T00:00:00`)
+  if (Number.isNaN(parsed.getTime())) return ''
+  return parsed.toLocaleDateString('en-GB', { day: 'numeric', month: 'short' })
+}
+
+function formatJourneyRange(startDate, endDate, fallback = '') {
+  if (!startDate || !endDate) return fallback
+  return `Our Journey: ${formatJourneyDate(startDate)} · Through: ${formatJourneyDate(endDate)}`
+}
+
 
 function App() {
   const [session, setSession] = useState(undefined)
@@ -88,7 +100,10 @@ function Journal({ session, onSignOut }) {
   async function addMemory(form) {
     const next = {
       id: crypto.randomUUID(), title: form.title,
-      place: form.place || 'Somewhere together', dates: form.dates,
+      place: form.place || 'Somewhere together',
+      startDate: form.startDate,
+      endDate: form.endDate,
+      dates: formatJourneyRange(form.startDate, form.endDate),
       color: form.color,
       cover: form.cover || COVER_PRESETS[0].url,
       days: []
@@ -431,7 +446,7 @@ function LocationSelect({ value, onChange }) {
 
 // ── Memory modal (create) ──
 function MemoryModal({ onClose, onSave }) {
-  const [f, setF] = useState({ title: '', place: '', dates: '', color: '#C45B38', cover: COVER_PRESETS[0].url })
+  const [f, setF] = useState({ title: '', place: '', startDate: '', endDate: '', color: '#C45B38', cover: COVER_PRESETS[0].url })
   const [showAdd, setShowAdd] = useState(false)
   const [addMode, setAddMode] = useState('upload')
   const [customUrl, setCustomUrl] = useState('')
@@ -495,7 +510,12 @@ function MemoryModal({ onClose, onSave }) {
         </label>
 
         <label>When?
-          <input placeholder="e.g. 15–18 Dec 2026" value={f.dates} onChange={e => setF({ ...f, dates: e.target.value })} />
+          <span className="date-range" role="group" aria-label="Journey dates">
+            <input required type="date" aria-label="Journey start date" value={f.startDate} onChange={e => setF({ ...f, startDate: e.target.value })} />
+            <span aria-hidden="true">through</span>
+            <input required type="date" min={f.startDate || undefined} aria-label="Journey end date" value={f.endDate} onChange={e => setF({ ...f, endDate: e.target.value })} />
+          </span>
+          {f.startDate && f.endDate && <small className="date-range-preview">{formatJourneyRange(f.startDate, f.endDate)}</small>}
         </label>
 
         <label>Accent colour

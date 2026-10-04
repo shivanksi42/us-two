@@ -99,6 +99,8 @@ export const api = {
         title: form.title,
         place: form.place,
         date_label: form.dates,
+        date_start: form.startDate,
+        date_end: form.endDate,
         color: form.color,
         cover: form.cover,
       }),

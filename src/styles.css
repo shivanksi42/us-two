@@ -354,6 +354,16 @@ button:focus-visible, input:focus-visible, textarea:focus-visible {
   color: #302722;
   transition: border-color .2s, box-shadow .2s;
 }
+.date-range {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+}
+.modal .date-range input { margin-top: 0; min-width: 0; }
+.date-range > span { color: #8a7b72; font-size: 11px; text-transform: uppercase; letter-spacing: .08em; }
+.date-range-preview { display: block; margin-top: 8px; color: #9d6755; font: 500 11px 'DM Mono'; letter-spacing: .02em; }
 .modal input:not([type=color]):focus, .modal textarea:focus {
   border-color: #bd684b;
   box-shadow: 0 0 0 3px #bd684b22;
