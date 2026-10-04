@@ -1,7 +1,7 @@
 const BASE_URL = import.meta.env.API_URL || 'http://localhost:8000'
 const TOKEN_KEY = 'us-two-access-token'
 
-async function request(path, options = {}) {
+async function request(path, options = {}, retried = false) {
   const token = localStorage.getItem(TOKEN_KEY)
   const headers = {
     ...(options.body instanceof FormData ? {} : { 'Content-Type': 'application/json' }),
@@ -16,6 +16,19 @@ async function request(path, options = {}) {
   })
 
   const data = await response.json().catch(() => ({}))
+
+  if (response.status === 401 && !retried && !path.startsWith('/api/auth/')) {
+    try {
+      const refreshResponse = await fetch(`${BASE_URL}/api/auth/refresh`, {
+        method: 'POST', credentials: 'include', headers: { 'Content-Type': 'application/json' },
+      })
+      const refreshed = await refreshResponse.json().catch(() => ({}))
+      if (refreshResponse.ok && refreshed.access_token) {
+        localStorage.setItem(TOKEN_KEY, refreshed.access_token)
+        return request(path, options, true)
+      }
+    } catch { /* retain the original error response */ }
+  }
 
   if (!response.ok) {
     const message =
@@ -139,9 +152,9 @@ export const api = {
     request(`/api/days/${dayId}/entries`, {
       method: 'POST',
       body: JSON.stringify(
-        entry.type === 'photo'
+        entry.type === 'photo' || entry.type === 'video'
           ? {
-              type: 'photo',
+              type: entry.type,
               photo_url: entry.url,
               photo_public_id: entry.publicId,
               caption: entry.caption,
@@ -157,20 +170,21 @@ export const api = {
   updateEntry: (entryId, entry) =>
     request(`/api/entries/${entryId}`, {
       method: 'PUT',
-      body: JSON.stringify(entry.type === 'photo'
-        ? { type: 'photo', photo_url: entry.url, photo_public_id: entry.publicId, caption: entry.caption || '' }
+      body: JSON.stringify(entry.type === 'photo' || entry.type === 'video'
+        ? { type: entry.type, photo_url: entry.url, photo_public_id: entry.publicId, caption: entry.caption || '' }
         : { type: 'text', body: entry.text, color: entry.color }),
     }),
   deleteEntry: entryId => request(`/api/entries/${entryId}`, { method: 'DELETE' }),
 
-  createEntriesBulk: (dayId, entries) =>
+  createEntriesBulk: (dayId, entries, insertAt) =>
     request(`/api/days/${dayId}/entries/bulk`, {
       method: 'POST',
       body: JSON.stringify({
+        ...(Number.isInteger(insertAt) ? { insert_at: insertAt } : {}),
         entries: entries.map(entry =>
-          entry.type === 'photo'
+          entry.type === 'photo' || entry.type === 'video'
             ? {
-                type: 'photo',
+                type: entry.type,
                 photo_url: entry.url,
                 photo_public_id: entry.publicId,
                 caption: entry.caption || '',
@@ -238,8 +252,9 @@ export async function uploadMultipleToCloudinary(files, onProgress) {
     form.append('folder', signature.folder)
     form.append('signature', signature.signature)
 
+    const resourceType = file.type.startsWith('video/') ? 'video' : 'image'
     const response = await fetch(
-      `https://api.cloudinary.com/v1_1/${signature.cloud_name}/image/upload`,
+      `https://api.cloudinary.com/v1_1/${signature.cloud_name}/${resourceType}/upload`,
       { method: 'POST', body: form }
     )
 
@@ -251,7 +266,7 @@ export async function uploadMultipleToCloudinary(files, onProgress) {
     if (onProgress) {
       onProgress(completed, files.length)
     }
-    return { url: data.secure_url, publicId: data.public_id }
+    return { url: data.secure_url, publicId: data.public_id, resourceType }
   }
 
   // Upload in parallel

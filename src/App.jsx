@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import CreatableSelect from 'react-select/creatable'
-import { CalendarDays, ChevronLeft, ChevronRight, Heart, ImagePlus, LayoutGrid, Link2, Link2Off, LogOut, MapPin, Pencil, Plus, Sparkles, Trash2, UserPlus, X } from 'lucide-react'
+import { CalendarDays, ChevronLeft, ChevronRight, Heart, ImagePlus, LayoutGrid, Link2, Link2Off, LogOut, MapPin, Pencil, Plus, Sparkles, Trash2, UserPlus, Video, X } from 'lucide-react'
 import { api, uploadMultipleToCloudinary } from './lib'
 import { searchLocalDestinations, searchPhotonPlaces, FEATURED_PLACES } from './places'
 
@@ -163,7 +163,7 @@ function Journal({ session, onSignOut }) {
     setNotice('Your new chapter is ready. Add the first day.')
   }
 
-  async function addEntries(entriesList, dayDate) {
+  async function addEntries(entriesList, dayDate, insertAt) {
     if (!entriesList || entriesList.length === 0) return
     let targetDay = memory.days.find(d => d.date === dayDate), isNewDay = !targetDay
     if (!targetDay) {
@@ -176,10 +176,15 @@ function Journal({ session, onSignOut }) {
       setActiveDay(memory.days.length)
     }
     try {
-      const savedEntries = await api.createEntriesBulk(targetDay.id, entriesList)
+      const savedEntries = await api.createEntriesBulk(targetDay.id, entriesList, insertAt)
       setMemories(all => all.map(m => m.id !== memory.id ? m : isNewDay
         ? { ...m, days: [...m.days, { ...targetDay, entries: savedEntries }] }
-        : { ...m, days: m.days.map(day => day.id !== targetDay.id ? day : { ...day, entries: [...day.entries, ...savedEntries] }) }
+        : { ...m, days: m.days.map(day => day.id !== targetDay.id ? day : {
+            ...day,
+            entries: Number.isInteger(insertAt)
+              ? [...day.entries.slice(0, insertAt), ...savedEntries, ...day.entries.slice(insertAt)]
+              : [...day.entries, ...savedEntries],
+          }) }
       ))
       setEntryModal(false)
       setNotice(savedEntries.length > 1 ? `Added ${savedEntries.length} moments to your timeline.` : 'Added to your timeline.')
@@ -272,7 +277,7 @@ function Journal({ session, onSignOut }) {
 
       {view === 'home'
         ? <Home memories={memories} onOpen={id => { setActiveId(id); setActiveDay(0); setView('timeline') }} onAdd={() => setModal(true)} />
-        : <MemoryView memory={memory} activeDay={activeDay} setActiveDay={setActiveDay} view={view} setView={setView} onBack={() => setView('home')} onAdd={() => setEntryModal({ dayDate: memory?.startDate, locked: false })} onAddCurrentDay={() => setEntryModal({ dayDate: memory?.days[activeDay]?.date || memory?.startDate, locked: true })} onAddNextDay={() => {
+        : <MemoryView memory={memory} activeDay={activeDay} setActiveDay={setActiveDay} view={view} setView={setView} onBack={() => setView('home')} onAdd={() => setEntryModal({ dayDate: memory?.startDate, locked: false })} onAddCurrentDay={() => setEntryModal({ dayDate: memory?.days[activeDay]?.date || memory?.startDate, locked: true })} onInsertAt={insertAt => setEntryModal({ dayDate: memory?.days[activeDay]?.date || memory?.startDate, locked: true, insertAt })} onAddNextDay={() => {
           const currentDate = memory?.days[activeDay]?.date
           const nextDate = currentDate ? new Date(`${currentDate}T00:00:00`) : new Date(`${memory?.startDate || new Date().toISOString().slice(0, 10)}T00:00:00`)
           nextDate.setDate(nextDate.getDate() + 1)
@@ -282,7 +287,7 @@ function Journal({ session, onSignOut }) {
 
       {modal && <MemoryModal onClose={() => setModal(false)} onSave={addMemory} />}
       {editingMemory && <MemoryModal memory={editingMemory} onClose={() => setEditingMemory(null)} onSave={form => updateMemory(editingMemory.id, form)} />}
-      {entryModal && <EntryModal color={memory?.color} startDate={memory?.startDate} endDate={memory?.endDate} initialDayDate={entryModal.dayDate} lockDay={entryModal.locked} onClose={() => setEntryModal(null)} onSave={addEntries} />}
+      {entryModal && <EntryModal color={memory?.color} startDate={memory?.startDate} endDate={memory?.endDate} initialDayDate={entryModal.dayDate} lockDay={entryModal.locked} insertAt={entryModal.insertAt} onClose={() => setEntryModal(null)} onSave={addEntries} />}
       {editingDay && <DayModal day={editingDay} onClose={() => setEditingDay(null)} onSave={form => updateDay(editingDay.id, form)} />}
       {editingEntry && <EditEntryModal entry={editingEntry} onClose={() => setEditingEntry(null)} onSave={form => updateEntry(editingEntry.id, form)} />}
       {profileOpen && (
@@ -335,7 +340,7 @@ function Home({ memories, onOpen, onAdd }) {
 }
 
 // ── Memory view ──
-function MemoryView({ memory, activeDay, setActiveDay, view, setView, onBack, onAdd, onAddCurrentDay, onAddNextDay, onEditMemory, onDeleteMemory, onEditDay, onDeleteDay, onEditEntry, onDeleteEntry }) {
+function MemoryView({ memory, activeDay, setActiveDay, view, setView, onBack, onAdd, onAddCurrentDay, onInsertAt, onAddNextDay, onEditMemory, onDeleteMemory, onEditDay, onDeleteDay, onEditEntry, onDeleteEntry }) {
   const day = memory.days[activeDay]
   const [month, setMonth] = useState(new Date(`${memory.startDate || memory.days[0]?.date || new Date().toISOString().slice(0, 10)}T00:00:00`))
   return (
@@ -380,15 +385,18 @@ function MemoryView({ memory, activeDay, setActiveDay, view, setView, onBack, on
               <p>{day ? new Date(`${day.date}T00:00`).toLocaleDateString('en', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }) : 'Your story starts here.'}</p>
             </div>
             <div className="entries">
-              {day?.entries.map(entry => (
-                <article className={`entry ${entry.type}`} key={entry.id}>
+              {day?.entries.map((entry, index) => <div className="entry-slot" key={entry.id}>
+                <article className={`entry ${entry.type}`}>
                   <span className="item-actions entry-actions"><button title="Edit moment" onClick={() => onEditEntry(entry)}><Pencil size={14} /></button><button title="Delete moment" className="danger" onClick={() => onDeleteEntry(entry)}><Trash2 size={14} /></button></span>
                   {entry.type === 'photo'
                     ? <><img src={entry.url} alt={entry.caption} loading="lazy" /><p>{entry.caption}</p></>
+                    : entry.type === 'video'
+                      ? <><video controls preload="metadata" src={entry.url} /><p>{entry.caption}</p></>
                     : <><span className="quote-mark" style={{ color: entry.color }}>"</span><p style={{ color: entry.color }}>{entry.text}</p></>
                   }
                 </article>
-              ))}
+                <button className="insert-moment" onClick={() => onInsertAt(index + 1)}><Plus size={14} /> Insert moment here</button>
+              </div>)}
               <button className="timeline-add" onClick={onAddCurrentDay}><Plus size={19} /> Add another little moment</button>
             </div>
           </section>
@@ -778,7 +786,7 @@ function EditEntryModal({ entry, onClose, onSave }) {
   const [url, setUrl] = useState(entry.url || '')
   const submit = e => {
     e.preventDefault()
-    onSave(entry.type === 'photo'
+    onSave(entry.type === 'photo' || entry.type === 'video'
       ? { ...entry, url, caption }
       : { ...entry, text, color })
   }
@@ -787,8 +795,8 @@ function EditEntryModal({ entry, onClose, onSave }) {
       <form className="modal edit-modal" onSubmit={submit}>
         <button type="button" className="close" onClick={onClose}><X size={16} /></button>
         <p className="eyebrow">EDIT MOMENT</p><h2>Keep the details true.</h2>
-        {entry.type === 'photo' ? <>
-          <label>Photo URL<input required type="url" value={url} onChange={e => setUrl(e.target.value)} /></label>
+        {entry.type === 'photo' || entry.type === 'video' ? <>
+          <label>{entry.type === 'video' ? 'Video URL' : 'Photo URL'}<input required type="url" value={url} onChange={e => setUrl(e.target.value)} /></label>
           <label>Caption<input value={caption} onChange={e => setCaption(e.target.value)} /></label>
         </> : <>
           <label>Your words<textarea required value={text} onChange={e => setText(e.target.value)} /></label>
@@ -801,7 +809,7 @@ function EditEntryModal({ entry, onClose, onSave }) {
 }
 
 // ── Entry modal ──
-function EntryModal({ color: initialColor, startDate, endDate, initialDayDate, lockDay, onClose, onSave }) {
+function EntryModal({ color: initialColor, startDate, endDate, initialDayDate, lockDay, insertAt, onClose, onSave }) {
   const [kind, setKind] = useState('photo')
   const [text, setText] = useState('')
   const [caption, setCaption] = useState('')
@@ -848,13 +856,13 @@ function EntryModal({ color: initialColor, startDate, endDate, initialDayDate, l
     setSaving(true); setUploadStatus('')
     try {
       if (kind === 'text') {
-        await onSave([{ type: 'text', text, color }], dayDate)
+        await onSave([{ type: 'text', text, color }], dayDate, insertAt)
       } else if (files.length > 0) {
         setUploadStatus('Saving moments to journal...')
-        const entries = files.filter(file => file.status === 'ready').map(file => ({ type: 'photo', url: file.uploaded.url, publicId: file.uploaded.publicId, caption: caption || '' }))
-        await onSave(entries, dayDate)
+        const entries = files.filter(file => file.status === 'ready').map(file => ({ type: file.uploaded.resourceType === 'video' ? 'video' : 'photo', url: file.uploaded.url, publicId: file.uploaded.publicId, caption: caption || '' }))
+        await onSave(entries, dayDate, insertAt)
       } else {
-        await onSave([{ type: 'photo', url: 'https://images.unsplash.com/photo-1498307833015-e7b400441eb8?auto=format&fit=crop&w=1000&q=85', caption: caption || 'A little moment, saved forever.' }], dayDate)
+        await onSave([{ type: 'photo', url: 'https://images.unsplash.com/photo-1498307833015-e7b400441eb8?auto=format&fit=crop&w=1000&q=85', caption: caption || 'A little moment, saved forever.' }], dayDate, insertAt)
       }
     } catch (err) { alert(err.message) }
     finally { setSaving(false); setUploadStatus('') }
@@ -865,7 +873,7 @@ function EntryModal({ color: initialColor, startDate, endDate, initialDayDate, l
       <form className="modal entry-modal" onSubmit={submit}>
         <button type="button" className="close" onClick={onClose}><X size={16} /></button>
         <p className="eyebrow">ADD TO THE STORY</p>
-        <h2>What do you want to remember?</h2>
+        <h2>{Number.isInteger(insertAt) ? 'Add this in between.' : 'What do you want to remember?'}</h2>
         {lockDay
           ? <div className="locked-day"><small>ADDING TO</small><b>{new Date(`${dayDate}T00:00:00`).toLocaleDateString('en', { weekday: 'long', month: 'long', day: 'numeric' })}</b></div>
           : <label>Which day?
@@ -876,27 +884,30 @@ function EntryModal({ color: initialColor, startDate, endDate, initialDayDate, l
           <button type="button" className={kind === 'photo' ? 'chosen' : ''} onClick={() => setKind('photo')}>
             <ImagePlus size={17} /> Photos {files.length > 0 && <span className="photo-count-badge">{files.length}</span>}
           </button>
+          <button type="button" className={kind === 'video' ? 'chosen' : ''} onClick={() => setKind('video')}>
+            <Video size={17} /> Videos
+          </button>
           <button type="button" className={kind === 'text' ? 'chosen' : ''} onClick={() => setKind('text')}>
             <Sparkles size={17} /> Highlight
           </button>
         </div>
-        {kind === 'photo' ? (
+        {kind === 'photo' || kind === 'video' ? (
           <>
             <button type="button" className="filepick" onClick={() => fileInput.current.click()}
               onDragOver={e => e.preventDefault()}
               onDrop={e => { e.preventDefault(); handleFiles(e.dataTransfer.files) }}>
               <ImagePlus size={20} />
               <div>
-                <b>{files.length > 0 ? `Add more photos (${files.length} selected)` : 'Choose photos'}</b>
+                <b>{files.length > 0 ? `Add more ${kind === 'video' ? 'videos' : 'photos'} (${files.length} selected)` : `Choose ${kind === 'video' ? 'videos' : 'photos'}`}</b>
                 <span className="filepick-subtext">Uploads start immediately</span>
               </div>
             </button>
-            <input hidden multiple ref={fileInput} type="file" accept="image/*" onChange={e => handleFiles(e.target.files)} />
+            <input hidden multiple ref={fileInput} type="file" accept={kind === 'video' ? 'video/*' : 'image/*'} onChange={e => handleFiles(e.target.files)} />
             {files.length > 0 && (
               <div className="bulk-preview-grid">
                 {files.map(item => (
                   <div className={`bulk-preview-item ${item.status}`} key={item.id} title={item.name}>
-                    <img src={item.url} alt="" />
+                    {item.file.type.startsWith('video/') ? <video muted src={item.url} /> : <img src={item.url} alt="" />}
                     {item.status === 'uploading' && <span className="uploading-photo">Uploading…</span>}
                     {item.status === 'error' && <span className="uploading-photo error">Failed</span>}
                     <button type="button" className="bulk-preview-remove" onClick={() => removePhoto(item.id)} title="Remove photo"><X size={12} /></button>
