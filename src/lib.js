@@ -261,7 +261,20 @@ export async function uploadMultipleToCloudinary(files, onProgress) {
     )
 
     if (!response.ok) {
-      throw new Error(`Failed to upload ${file.name || 'photo'}. Please try again.`)
+      const failure = await response.json().catch(() => ({}))
+      const reason = failure.error?.message || `Cloudinary returned ${response.status}`
+      // The media request bypasses our API, so report its rejection separately.
+      // This keeps the useful Cloudinary reason visible in backend deployment logs.
+      request('/api/uploads/failure', {
+        method: 'POST',
+        body: JSON.stringify({
+          file_name: file.name || (resourceType === 'video' ? 'video' : 'photo'),
+          resource_type: resourceType,
+          status: response.status,
+          reason,
+        }),
+      }).catch(() => {})
+      throw new Error(`Failed to upload ${file.name || (resourceType === 'video' ? 'video' : 'photo')}: ${reason}`)
     }
     const data = await response.json()
     completed += 1
