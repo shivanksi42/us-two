@@ -152,6 +152,25 @@ export const api = {
         ),
       }),
     }),
+
+  // ── Partner Connection ──
+  connectionStatus: () => request('/api/connect/status'),
+
+  sendInvite: (partnerEmail) =>
+    request('/api/connect/invite', {
+      method: 'POST',
+      body: JSON.stringify({ partner_email: partnerEmail }),
+    }),
+
+  respondInvite: (connectionId, accept) =>
+    request('/api/connect/respond', {
+      method: 'POST',
+      body: JSON.stringify({ connection_id: connectionId, accept }),
+    }),
+
+  disconnect: () => request('/api/connect', { method: 'DELETE' }),
+
+  cancelInvite: () => request('/api/connect/cancel', { method: 'DELETE' }),
 }
 
 export async function uploadToCloudinary(file) {
