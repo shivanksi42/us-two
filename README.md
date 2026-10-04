@@ -26,6 +26,7 @@ Open `http://localhost:5173`. Use **Create the shared account** once, then both 
 1. For a free hosted database, create a Supabase project and use its Postgres connection string as `DATABASE_URL` in `backend/.env`. The separate API owns the tables and authentication; it does not use Supabase Auth.
 2. Add a long `JWT_SECRET`, the deployed Vercel URL as `FRONTEND_ORIGIN`, and your Cloudinary credentials to `backend/.env`.
 3. Photo uploads are signed by the authenticated backend. The Cloudinary API secret remains only on the backend—never in a `VITE_` frontend variable.
+4. To enable Google Sign-In, create a **Web application** OAuth client in Google Cloud. Add your frontend URLs under **Authorized JavaScript origins**, then set its public client ID as `GOOGLE_CLIENT_ID` in both Vercel projects (and `backend/.env` for local API use).
 
 ## Deploy free
 

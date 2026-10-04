@@ -52,6 +52,15 @@ export const api = {
     return result.user
   },
 
+  googleLogin: async credential => {
+    const result = await request('/api/auth/google', {
+      method: 'POST',
+      body: JSON.stringify({ credential }),
+    })
+    localStorage.setItem(TOKEN_KEY, result.access_token)
+    return result.user
+  },
+
   me: async () => {
     try {
       return await request('/api/auth/me')

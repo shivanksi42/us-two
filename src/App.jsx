@@ -16,6 +16,8 @@ const COVER_PRESETS = [
   { label: 'Lakes', url: 'https://images.unsplash.com/photo-1501854140801-50d01698950b?auto=format&fit=crop&w=1200&q=85' },
 ]
 
+const GOOGLE_CLIENT_ID = import.meta.env.GOOGLE_CLIENT_ID
+
 function formatJourneyDate(date) {
   if (!date) return ''
   const parsed = new Date(`${date}T00:00:00`)
@@ -55,6 +57,12 @@ function Login({ onLogin }) {
     catch (err) { setError(err.message) }
     finally { setSending(false) }
   }
+  const signInWithGoogle = useCallback(async credential => {
+    setSending(true); setError('')
+    try { onLogin(await api.googleLogin(credential)) }
+    catch (err) { setError(err.message) }
+    finally { setSending(false) }
+  }, [onLogin])
   return (
     <main className="login-page">
       <form className="login-card" onSubmit={signIn}>
@@ -68,12 +76,50 @@ function Login({ onLogin }) {
         <button className="primary" disabled={sending}>
           {sending ? 'Opening…' : registering ? 'Create my account' : 'Open our memories'} <Heart size={16} />
         </button>
+        {!registering && <GoogleSignIn onCredential={signInWithGoogle} disabled={sending} />}
         <button type="button" className="switch-auth" onClick={() => { setRegistering(!registering); setError('') }}>
           {registering ? 'Already have an account? Sign in' : 'First time? Create an account'}
         </button>
       </form>
     </main>
   )
+}
+
+function GoogleSignIn({ onCredential, disabled }) {
+  const buttonRef = useRef(null)
+  const [loadError, setLoadError] = useState(false)
+
+  useEffect(() => {
+    if (!GOOGLE_CLIENT_ID || !buttonRef.current) return undefined
+    let cancelled = false
+    const render = () => {
+      if (cancelled || !buttonRef.current || !window.google?.accounts?.id) return
+      window.google.accounts.id.initialize({ client_id: GOOGLE_CLIENT_ID, callback: response => onCredential(response.credential) })
+      buttonRef.current.replaceChildren()
+      window.google.accounts.id.renderButton(buttonRef.current, {
+        theme: 'outline', size: 'large', text: 'continue_with', width: 350, shape: 'rectangular',
+      })
+    }
+    const existing = document.querySelector('script[data-google-identity]')
+    if (window.google?.accounts?.id) render()
+    else if (existing) existing.addEventListener('load', render, { once: true })
+    else {
+      const script = document.createElement('script')
+      script.src = 'https://accounts.google.com/gsi/client'
+      script.async = true
+      script.dataset.googleIdentity = 'true'
+      script.onload = render
+      script.onerror = () => !cancelled && setLoadError(true)
+      document.head.appendChild(script)
+    }
+    return () => { cancelled = true }
+  }, [onCredential])
+
+  if (!GOOGLE_CLIENT_ID) return null
+  return <div className={`google-signin ${disabled ? 'disabled' : ''}`}>
+    <span>or</span>
+    {loadError ? <small className="error">Google Sign-In could not load.</small> : <div ref={buttonRef} />}
+  </div>
 }
 
 // ── Journal (main shell) ──

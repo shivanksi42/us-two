@@ -636,6 +636,10 @@ button:focus-visible, input:focus-visible, textarea:focus-visible {
 .switch-auth { background: none; color: #9d6755; font-size: 13px; margin-top: 14px; width: 100%; text-align: center; padding: 8px; transition: color .2s; }
 .switch-auth:hover { color: #b45c41; }
 .error { color: #c0392b; font-size: 12px; display: block; margin-top: 6px; }
+.google-signin { display: grid; justify-items: center; gap: 10px; margin-top: 16px; }
+.google-signin > span { width: 100%; display: flex; align-items: center; gap: 10px; color: #9b8e85; font: 11px 'DM Mono'; }
+.google-signin > span::before, .google-signin > span::after { content: ''; height: 1px; background: #e5ddd5; flex: 1; }
+.google-signin.disabled { opacity: .55; pointer-events: none; }
 
 /* ── Profile modal ── */
 .profile-modal { width: min(440px, 100%); }
