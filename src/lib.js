@@ -1,5 +1,10 @@
 const BASE_URL = import.meta.env.API_URL || 'http://localhost:8000'
 const TOKEN_KEY = 'us-two-access-token'
+// Cloudinary Free currently accepts images up to 10 MiB and videos up to 100 MiB.
+// Leave a little room below the server limit for predictable uploads.
+const MAX_IMAGE_BYTES = 10 * 1024 * 1024
+const IMAGE_COMPRESSION_TARGET_BYTES = Math.floor(9.5 * 1024 * 1024)
+const MAX_VIDEO_BYTES = 100 * 1024 * 1024
 
 async function request(path, options = {}, retried = false) {
   const token = localStorage.getItem(TOKEN_KEY)
@@ -239,6 +244,60 @@ export async function uploadToCloudinary(file) {
   return { url: data.secure_url, publicId: data.public_id }
 }
 
+function canvasToBlob(canvas, quality) {
+  return new Promise((resolve, reject) => {
+    canvas.toBlob(blob => {
+      if (blob) resolve(blob)
+      else reject(new Error('Your browser could not compress this image. Please choose a smaller image.'))
+    }, 'image/jpeg', quality)
+  })
+}
+
+async function loadImageForCompression(file) {
+  const objectUrl = URL.createObjectURL(file)
+  try {
+    const image = new Image()
+    image.src = objectUrl
+    await image.decode()
+    return image
+  } catch {
+    throw new Error(`Could not compress ${file.name}. Please choose an image smaller than 10 MB.`)
+  } finally {
+    URL.revokeObjectURL(objectUrl)
+  }
+}
+
+async function compressImageIfNeeded(file) {
+  if (file.size <= MAX_IMAGE_BYTES) return file
+  if (file.type === 'image/gif') {
+    throw new Error(`${file.name} is an animated GIF larger than 10 MB and cannot be compressed without losing its animation.`)
+  }
+
+  const image = await loadImageForCompression(file)
+  const longestSide = Math.max(image.naturalWidth, image.naturalHeight)
+  let scale = Math.min(1, 3000 / longestSide)
+
+  // Re-encode as JPEG and gradually reduce dimensions/quality until the upload
+  // is safely below Cloudinary's Free-plan image limit.
+  for (let attempt = 0; attempt < 7; attempt += 1) {
+    const canvas = document.createElement('canvas')
+    canvas.width = Math.max(1, Math.round(image.naturalWidth * scale))
+    canvas.height = Math.max(1, Math.round(image.naturalHeight * scale))
+    const context = canvas.getContext('2d')
+    context.fillStyle = '#ffffff'
+    context.fillRect(0, 0, canvas.width, canvas.height)
+    context.drawImage(image, 0, 0, canvas.width, canvas.height)
+    const quality = Math.max(0.58, 0.9 - attempt * 0.06)
+    const blob = await canvasToBlob(canvas, quality)
+    if (blob.size <= IMAGE_COMPRESSION_TARGET_BYTES) {
+      const baseName = file.name.replace(/\.[^/.]+$/, '') || 'photo'
+      return new File([blob], `${baseName}.jpg`, { type: 'image/jpeg', lastModified: Date.now() })
+    }
+    scale *= 0.78
+  }
+  throw new Error(`${file.name} could not be compressed below the 10 MB upload limit.`)
+}
+
 export async function uploadMultipleToCloudinary(files, onProgress) {
   if (!files || files.length === 0) return []
 
@@ -247,14 +306,18 @@ export async function uploadMultipleToCloudinary(files, onProgress) {
   let completed = 0
 
   const uploadSingle = async file => {
+    const resourceType = file.type.startsWith('video/') ? 'video' : 'image'
+    if (resourceType === 'video' && file.size > MAX_VIDEO_BYTES) {
+      throw new Error(`${file.name} is larger than the 100 MB video upload limit.`)
+    }
+    const uploadFile = resourceType === 'image' ? await compressImageIfNeeded(file) : file
     const form = new FormData()
-    form.append('file', file)
+    form.append('file', uploadFile)
     form.append('api_key', signature.api_key)
     form.append('timestamp', String(signature.timestamp))
     form.append('folder', signature.folder)
     form.append('signature', signature.signature)
 
-    const resourceType = file.type.startsWith('video/') ? 'video' : 'image'
     const response = await fetch(
       `https://api.cloudinary.com/v1_1/${signature.cloud_name}/${resourceType}/upload`,
       { method: 'POST', body: form }
