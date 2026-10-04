@@ -222,6 +222,11 @@ button:focus-visible, input:focus-visible, textarea:focus-visible {
 .memory-title p { display: flex; gap: 5px; align-items: center; font-size: 13px; margin: 0 0 9px; }
 .memory-title h1 { font: 600 clamp(39px, 5vw, 63px) / 1 'Playfair Display'; margin: 0 0 11px; }
 .memory-title span { font: 500 11px 'DM Mono'; letter-spacing: 1px; }
+.memory-actions { position: absolute; right: 6vw; bottom: 40px; display: flex; gap: 7px; }
+.memory-actions button, .item-actions button { background: #fffdf9e8; color: #5c4d44; display: grid; place-items: center; border-radius: 50%; transition: background .2s, color .2s; }
+.memory-actions button { width: 34px; height: 34px; }
+.memory-actions button:hover, .item-actions button:hover { background: #fff; color: #b45c41; }
+.memory-actions .danger:hover, .item-actions .danger:hover { color: #b33e31; }
 
 /* ── Memory nav ── */
 .memory-nav {
@@ -265,6 +270,11 @@ button:focus-visible, input:focus-visible, textarea:focus-visible {
 .day-intro { position: sticky; top: 160px; height: min-content; }
 .day-intro h2 { line-height: 1.1; }
 .day-intro > p:last-child { font-size: 13px; color: #82766e; }
+.day-heading { display: flex; align-items: center; gap: 9px; }
+.item-actions { display: inline-flex; gap: 4px; opacity: .5; transition: opacity .2s; }
+.day-heading:hover .item-actions, .entry:hover .item-actions { opacity: 1; }
+.item-actions button { width: 27px; height: 27px; border: 1px solid #e4dcd4; }
+.entry-actions { position: absolute; top: 5px; right: 0; z-index: 1; }
 .entries { border-left: 1.5px solid #ded5cc; padding-left: 38px; }
 .entry { position: relative; margin: 0 0 40px; animation: fadeIn .4s ease; }
 .entry:before {
@@ -327,6 +337,7 @@ button:focus-visible, input:focus-visible, textarea:focus-visible {
   animation: slideUp .25s ease;
 }
 .memory-modal { width: min(540px, 100%); }
+.edit-modal { width: min(430px, 100%); }
 @keyframes slideUp { from { opacity: 0; transform: translateY(16px); } to { opacity: 1; transform: translateY(0); } }
 .modal h2 { font: 600 32px/1.1 'Playfair Display'; margin: 0 0 26px; }
 .close {

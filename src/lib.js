@@ -106,6 +106,14 @@ export const api = {
       }),
     }),
 
+  updateMemory: (memoryId, form) =>
+    request(`/api/memories/${memoryId}`, {
+      method: 'PUT',
+      body: JSON.stringify({ title: form.title, place: form.place, date_label: form.dates, date_start: form.startDate, date_end: form.endDate, color: form.color, cover: form.cover }),
+    }),
+
+  deleteMemory: memoryId => request(`/api/memories/${memoryId}`, { method: 'DELETE' }),
+
   createDay: (memoryId, day) =>
     request(`/api/memories/${memoryId}/days`, {
       method: 'POST',
@@ -114,6 +122,9 @@ export const api = {
         title: day.label,
       }),
     }),
+
+  updateDay: (dayId, day) => request(`/api/days/${dayId}`, { method: 'PUT', body: JSON.stringify({ day_date: day.date, title: day.label }) }),
+  deleteDay: dayId => request(`/api/days/${dayId}`, { method: 'DELETE' }),
 
   createEntry: (dayId, entry) =>
     request(`/api/days/${dayId}/entries`, {
@@ -133,6 +144,15 @@ export const api = {
             }
       ),
     }),
+
+  updateEntry: (entryId, entry) =>
+    request(`/api/entries/${entryId}`, {
+      method: 'PUT',
+      body: JSON.stringify(entry.type === 'photo'
+        ? { type: 'photo', photo_url: entry.url, photo_public_id: entry.publicId, caption: entry.caption || '' }
+        : { type: 'text', body: entry.text, color: entry.color }),
+    }),
+  deleteEntry: entryId => request(`/api/entries/${entryId}`, { method: 'DELETE' }),
 
   createEntriesBulk: (dayId, entries) =>
     request(`/api/days/${dayId}/entries/bulk`, {

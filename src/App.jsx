@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import CreatableSelect from 'react-select/creatable'
-import { CalendarDays, ChevronLeft, ChevronRight, Heart, ImagePlus, LayoutGrid, Link2, Link2Off, LogOut, MapPin, Plus, Sparkles, UserPlus, X } from 'lucide-react'
+import { CalendarDays, ChevronLeft, ChevronRight, Heart, ImagePlus, LayoutGrid, Link2, Link2Off, LogOut, MapPin, Pencil, Plus, Sparkles, Trash2, UserPlus, X } from 'lucide-react'
 import { api, uploadMultipleToCloudinary } from './lib'
 import { searchLocalDestinations, searchPhotonPlaces, FEATURED_PLACES } from './places'
 
@@ -83,6 +83,9 @@ function Journal({ session, onSignOut }) {
   const [view, setView] = useState('home')
   const [modal, setModal] = useState(false)
   const [entryModal, setEntryModal] = useState(false)
+  const [editingMemory, setEditingMemory] = useState(null)
+  const [editingDay, setEditingDay] = useState(null)
+  const [editingEntry, setEditingEntry] = useState(null)
   const [profileOpen, setProfileOpen] = useState(false)
   const [activeDay, setActiveDay] = useState(0)
   const [notice, setNotice] = useState('')
@@ -137,6 +140,61 @@ function Journal({ session, onSignOut }) {
     } catch (error) { setNotice(error.message) }
   }
 
+  async function updateMemory(memoryId, form) {
+    try {
+      const saved = await api.updateMemory(memoryId, { ...form, dates: formatJourneyRange(form.startDate, form.endDate) })
+      setMemories(all => all.map(m => m.id === memoryId ? saved : m))
+      setEditingMemory(null); setNotice('Chapter updated.')
+    } catch (error) { setNotice(error.message) }
+  }
+
+  async function deleteMemory(memoryId) {
+    if (!window.confirm('Delete this chapter and every moment inside it? This cannot be undone.')) return
+    try {
+      await api.deleteMemory(memoryId)
+      setMemories(all => {
+        const next = all.filter(m => m.id !== memoryId)
+        setActiveId(next[0]?.id || null)
+        return next
+      })
+      setView('home'); setNotice('Chapter deleted.')
+    } catch (error) { setNotice(error.message) }
+  }
+
+  async function updateDay(dayId, form) {
+    try {
+      const saved = await api.updateDay(dayId, form)
+      setMemories(all => all.map(m => m.id !== memory.id ? m : { ...m, days: m.days.map(d => d.id === dayId ? saved : d) }))
+      setEditingDay(null); setNotice('Day updated.')
+    } catch (error) { setNotice(error.message) }
+  }
+
+  async function deleteDay(dayId) {
+    if (!window.confirm('Delete this day and all of its moments? This cannot be undone.')) return
+    try {
+      await api.deleteDay(dayId)
+      setMemories(all => all.map(m => m.id !== memory.id ? m : { ...m, days: m.days.filter(d => d.id !== dayId) }))
+      setActiveDay(0); setEditingDay(null); setNotice('Day deleted.')
+    } catch (error) { setNotice(error.message) }
+  }
+
+  async function updateEntry(entryId, form) {
+    try {
+      const saved = await api.updateEntry(entryId, form)
+      setMemories(all => all.map(m => m.id !== memory.id ? m : { ...m, days: m.days.map(d => ({ ...d, entries: d.entries.map(e => e.id === entryId ? saved : e) })) }))
+      setEditingEntry(null); setNotice('Moment updated.')
+    } catch (error) { setNotice(error.message) }
+  }
+
+  async function deleteEntry(entryId) {
+    if (!window.confirm('Delete this moment? This cannot be undone.')) return
+    try {
+      await api.deleteEntry(entryId)
+      setMemories(all => all.map(m => m.id !== memory.id ? m : { ...m, days: m.days.map(d => ({ ...d, entries: d.entries.filter(e => e.id !== entryId) })) }))
+      setNotice('Moment deleted.')
+    } catch (error) { setNotice(error.message) }
+  }
+
   // Get initials from session email
   const initials = useMemo(() => {
     if (!session?.email) return 'U'
@@ -168,11 +226,14 @@ function Journal({ session, onSignOut }) {
 
       {view === 'home'
         ? <Home memories={memories} onOpen={id => { setActiveId(id); setActiveDay(0); setView('timeline') }} onAdd={() => setModal(true)} />
-        : <MemoryView memory={memory} activeDay={activeDay} setActiveDay={setActiveDay} view={view} setView={setView} onBack={() => setView('home')} onAdd={() => setEntryModal(true)} />
+        : <MemoryView memory={memory} activeDay={activeDay} setActiveDay={setActiveDay} view={view} setView={setView} onBack={() => setView('home')} onAdd={() => setEntryModal(true)} onEditMemory={() => setEditingMemory(memory)} onDeleteMemory={() => deleteMemory(memory.id)} onEditDay={day => setEditingDay(day)} onDeleteDay={day => deleteDay(day.id)} onEditEntry={entry => setEditingEntry(entry)} onDeleteEntry={entry => deleteEntry(entry.id)} />
       }
 
       {modal && <MemoryModal onClose={() => setModal(false)} onSave={addMemory} />}
+      {editingMemory && <MemoryModal memory={editingMemory} onClose={() => setEditingMemory(null)} onSave={form => updateMemory(editingMemory.id, form)} />}
       {entryModal && <EntryModal color={memory?.color} onClose={() => setEntryModal(false)} onSave={addEntries} />}
+      {editingDay && <DayModal day={editingDay} onClose={() => setEditingDay(null)} onSave={form => updateDay(editingDay.id, form)} />}
+      {editingEntry && <EditEntryModal entry={editingEntry} onClose={() => setEditingEntry(null)} onSave={form => updateEntry(editingEntry.id, form)} />}
       {profileOpen && (
         <ProfileModal
           session={session}
@@ -223,7 +284,7 @@ function Home({ memories, onOpen, onAdd }) {
 }
 
 // ── Memory view ──
-function MemoryView({ memory, activeDay, setActiveDay, view, setView, onBack, onAdd }) {
+function MemoryView({ memory, activeDay, setActiveDay, view, setView, onBack, onAdd, onEditMemory, onDeleteMemory, onEditDay, onDeleteDay, onEditEntry, onDeleteEntry }) {
   const day = memory.days[activeDay]
   const [month, setMonth] = useState(new Date(memory.days[0]?.date || Date.now()))
   const daysWithEntries = useMemo(() => new Set(memory.days.map(d => d.date)), [memory])
@@ -233,6 +294,10 @@ function MemoryView({ memory, activeDay, setActiveDay, view, setView, onBack, on
         <img src={memory.cover} alt="" />
         <div className="hero-shade" />
         <button className="back" onClick={onBack}><ChevronLeft size={18} /> All memories</button>
+        <div className="memory-actions">
+          <button title="Edit chapter" onClick={onEditMemory}><Pencil size={16} /></button>
+          <button title="Delete chapter" className="danger" onClick={onDeleteMemory}><Trash2 size={16} /></button>
+        </div>
         <div className="memory-title">
           <p><MapPin size={14} />{memory.place}</p>
           <h1>{memory.title}</h1>
@@ -260,12 +325,13 @@ function MemoryView({ memory, activeDay, setActiveDay, view, setView, onBack, on
           <section className="timeline">
             <div className="day-intro">
               <p className="eyebrow" style={{ color: memory.color }}>IN THIS CHAPTER</p>
-              <h2>{day?.label || 'Add your first day'}</h2>
+              <div className="day-heading"><h2>{day?.label || 'Add your first day'}</h2>{day && <span className="item-actions"><button title="Edit day" onClick={() => onEditDay(day)}><Pencil size={14} /></button><button title="Delete day" className="danger" onClick={() => onDeleteDay(day)}><Trash2 size={14} /></button></span>}</div>
               <p>{day ? new Date(`${day.date}T00:00`).toLocaleDateString('en', { weekday: 'long', month: 'long', day: 'numeric', year: 'numeric' }) : 'Your story starts here.'}</p>
             </div>
             <div className="entries">
-              {day?.entries.map((entry, i) => (
-                <article className={`entry ${entry.type}`} key={i}>
+              {day?.entries.map(entry => (
+                <article className={`entry ${entry.type}`} key={entry.id}>
+                  <span className="item-actions entry-actions"><button title="Edit moment" onClick={() => onEditEntry(entry)}><Pencil size={14} /></button><button title="Delete moment" className="danger" onClick={() => onDeleteEntry(entry)}><Trash2 size={14} /></button></span>
                   {entry.type === 'photo'
                     ? <><img src={entry.url} alt={entry.caption} loading="lazy" /><p>{entry.caption}</p></>
                     : <><span className="quote-mark" style={{ color: entry.color }}>"</span><p style={{ color: entry.color }}>{entry.text}</p></>
@@ -445,8 +511,11 @@ function LocationSelect({ value, onChange }) {
 }
 
 // ── Memory modal (create) ──
-function MemoryModal({ onClose, onSave }) {
-  const [f, setF] = useState({ title: '', place: '', startDate: '', endDate: '', color: '#C45B38', cover: COVER_PRESETS[0].url })
+function MemoryModal({ onClose, onSave, memory = null }) {
+  const [f, setF] = useState(() => ({
+    title: memory?.title || '', place: memory?.place || '', startDate: memory?.startDate || '', endDate: memory?.endDate || '',
+    color: memory?.color || '#C45B38', cover: memory?.cover || COVER_PRESETS[0].url,
+  }))
   const [showAdd, setShowAdd] = useState(false)
   const [addMode, setAddMode] = useState('upload')
   const [customUrl, setCustomUrl] = useState('')
@@ -498,8 +567,8 @@ function MemoryModal({ onClose, onSave }) {
     <div className="overlay" onClick={e => e.target === e.currentTarget && onClose()}>
       <form className="modal memory-modal" onSubmit={e => { e.preventDefault(); onSave(f) }}>
         <button type="button" className="close" onClick={onClose}><X /></button>
-        <p className="eyebrow">A BRAND-NEW CHAPTER</p>
-        <h2>Where did you two go?</h2>
+        <p className="eyebrow">{memory ? 'REFINE THE CHAPTER' : 'A BRAND-NEW CHAPTER'}</p>
+        <h2>{memory ? 'Make this memory yours.' : 'Where did you two go?'}</h2>
 
         <label>Memory title
           <input required placeholder="e.g. Our trip to the hills" value={f.title} onChange={e => setF({ ...f, title: e.target.value })} />
@@ -620,7 +689,53 @@ function MemoryModal({ onClose, onSave }) {
           </div>
         )}
 
-        <button className="primary" type="submit">Create the chapter <Heart size={17} /></button>
+        <button className="primary" type="submit">{memory ? 'Save changes' : 'Create the chapter'} <Heart size={17} /></button>
+      </form>
+    </div>
+  )
+}
+
+// ── Day & moment editing ──
+function DayModal({ day, onClose, onSave }) {
+  const [label, setLabel] = useState(day.label)
+  const [date, setDate] = useState(day.date)
+  return (
+    <div className="overlay" onClick={e => e.target === e.currentTarget && onClose()}>
+      <form className="modal edit-modal" onSubmit={e => { e.preventDefault(); onSave({ label, date }) }}>
+        <button type="button" className="close" onClick={onClose}><X size={16} /></button>
+        <p className="eyebrow">EDIT DAY</p><h2>Shape this chapter.</h2>
+        <label>Day title<input required value={label} onChange={e => setLabel(e.target.value)} /></label>
+        <label>Date<input required type="date" value={date} onChange={e => setDate(e.target.value)} /></label>
+        <button className="primary" type="submit">Save day <Heart size={17} /></button>
+      </form>
+    </div>
+  )
+}
+
+function EditEntryModal({ entry, onClose, onSave }) {
+  const [text, setText] = useState(entry.text || '')
+  const [caption, setCaption] = useState(entry.caption || '')
+  const [color, setColor] = useState(entry.color || '#C45B38')
+  const [url, setUrl] = useState(entry.url || '')
+  const submit = e => {
+    e.preventDefault()
+    onSave(entry.type === 'photo'
+      ? { ...entry, url, caption }
+      : { ...entry, text, color })
+  }
+  return (
+    <div className="overlay" onClick={e => e.target === e.currentTarget && onClose()}>
+      <form className="modal edit-modal" onSubmit={submit}>
+        <button type="button" className="close" onClick={onClose}><X size={16} /></button>
+        <p className="eyebrow">EDIT MOMENT</p><h2>Keep the details true.</h2>
+        {entry.type === 'photo' ? <>
+          <label>Photo URL<input required type="url" value={url} onChange={e => setUrl(e.target.value)} /></label>
+          <label>Caption<input value={caption} onChange={e => setCaption(e.target.value)} /></label>
+        </> : <>
+          <label>Your words<textarea required value={text} onChange={e => setText(e.target.value)} /></label>
+          <label>Text colour<input type="color" value={color} onChange={e => setColor(e.target.value)} /></label>
+        </>}
+        <button className="primary" type="submit">Save moment <Heart size={17} /></button>
       </form>
     </div>
   )
