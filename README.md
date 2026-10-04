@@ -29,4 +29,4 @@ Open `http://localhost:5173`. Use **Create the shared account** once, then both 
 
 ## Deploy free
 
-Deploy the frontend to Vercel. Deploy `backend/` to Render, Railway, or Fly.io and set the backend environment variables there. In Vercel, set `VITE_API_URL=https://your-api-domain`. Vercel will detect Vite; build command: `npm run build`, output directory: `dist`.
+Deploy the frontend to Vercel. Deploy `backend/` to Render, Railway, or Fly.io and set the backend environment variables there. In Vercel, set `API_URL=https://your-api-domain`. Vercel will detect Vite; build command: `npm run build`, output directory: `dist`.
