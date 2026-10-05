@@ -30,6 +30,13 @@ function formatJourneyRange(startDate, endDate, fallback = '') {
   return `Our Journey: ${formatJourneyDate(startDate)} · Through: ${formatJourneyDate(endDate)}`
 }
 
+function nameFromEmail(email = '') {
+  const localPart = email.split('@')[0] || 'You'
+  return localPart
+    .replace(/[._-]+/g, ' ')
+    .replace(/\b\w/g, letter => letter.toUpperCase())
+}
+
 
 function App() {
   const [session, setSession] = useState(undefined)
@@ -278,7 +285,7 @@ function Journal({ session, onSignOut }) {
       )}
 
       {view === 'home'
-        ? <Home memories={memories} onOpen={id => { setActiveId(id); setActiveDay(0); setView('timeline') }} onAdd={() => setModal(true)} />
+        ? <Home session={session} memories={memories} onOpen={id => { setActiveId(id); setActiveDay(0); setView('timeline') }} onAdd={() => setModal(true)} onPartner={() => setProfileOpen(true)} />
         : <MemoryView memory={memory} activeDay={activeDay} setActiveDay={setActiveDay} view={view} setView={setView} onBack={() => setView('home')} onAdd={() => setEntryModal({ dayDate: memory?.startDate, locked: false })} onAddCurrentDay={() => setEntryModal({ dayDate: memory?.days[activeDay]?.date || memory?.startDate, locked: true })} onInsertAt={insertAt => setEntryModal({ dayDate: memory?.days[activeDay]?.date || memory?.startDate, locked: true, insertAt })} onAddNextDay={() => {
           const currentDate = memory?.days[activeDay]?.date
           const nextDate = currentDate ? new Date(`${currentDate}T00:00:00`) : new Date(`${memory?.startDate || new Date().toISOString().slice(0, 10)}T00:00:00`)
@@ -304,14 +311,37 @@ function Journal({ session, onSignOut }) {
 }
 
 // ── Home grid ──
-function Home({ memories, onOpen, onAdd }) {
+function Home({ session, memories, onOpen, onAdd, onPartner }) {
+  const [connection, setConnection] = useState(null)
+
+  useEffect(() => {
+    api.connectionStatus().then(setConnection).catch(() => setConnection({ status: 'none' }))
+  }, [])
+
+  const ownName = nameFromEmail(session?.email)
+  const partnerName = connection?.status === 'connected' ? nameFromEmail(connection.partner_email) : null
+
   return (
     <>
       <section className="hero">
         <p className="eyebrow">OUR LITTLE ARCHIVE <Sparkles size={14} /></p>
         <h1>All the places<br /><i>we became us.</i></h1>
         <p className="hero-copy">A private home for your loudest laughs, quietest days, and every beautiful in-between.</p>
-        <button className="primary" onClick={onAdd}><Plus size={18} /> Start a new memory</button>
+        <div className="hero-actions">
+          <button className="primary" onClick={onAdd}><Plus size={18} /> Start a new memory</button>
+          {connection?.status === 'connected' ? (
+            <button className="partner-together" onClick={onPartner} title="Manage your shared archive">
+              <small>Shared archive</small>
+              <span>{ownName}</span><i aria-hidden="true" /><span>{partnerName}</span>
+            </button>
+          ) : (
+            <button className="partner-cta" onClick={onPartner}>
+              <UserPlus size={17} />
+              <span>{connection?.status === 'pending_received' ? 'Review partner request' : connection?.status === 'pending_sent' ? 'View partner invitation' : 'Connect with your partner'}</span>
+            </button>
+          )}
+        </div>
+        {connection?.status === 'none' && <p className="partner-note">Invite them by email. They must accept before anything is shared.</p>}
       </section>
       <section className="collection">
         <div className="section-head">
